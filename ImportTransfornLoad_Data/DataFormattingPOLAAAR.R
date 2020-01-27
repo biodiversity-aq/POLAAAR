@@ -1,193 +1,14 @@
 ###library() the polartools package for the QC functions
-MarsLib<-read.csv("/Users/msweetlove/OneDrive_RBINS/mARS_NewSeqData/polaRRTools/Data/MarsLibrary.csv", 
+
+
+MIxS_packages<-read.csv("/Users/msweetlove/OneDrive_RBINS/mARS_NewSeqData/polaRRTools/Data/MIxSPackageLibrary.csv", 
                   header=TRUE)
+
 
 polaaarLib<-read.csv("/Users/msweetlove/OneDrive_RBINS/mARS_NewSeqData/polaRRTools/Data/PolaaarLibrary.csv", 
                                  header=TRUE)
 
 
-
-write.metadata.MIxS.as.mars <- function(metadata.object, name.prefix=NULL, dest.dir=getwd(),
-                                        add.missing.data.columns=TRUE, ask.input=TRUE){
-  #' @author Maxime Sweetlove ccBY 4.0 2019
-  #' @description write.metadata.MIxS.as.mars takes a metadata.MIxS object and outputs it as a MiMARKS and SequenceSet table to upload to mARS
-  #' @param metadata.object a metadata.MIxS class object. The object to be submitted to mARS
-  #' @param name a character string naming a file. Either a full path or a file name to write to the working directory. Invalid input will cause output to be printed to the console.
-  #' @param checklist_accession character. The name of a MIxS environmetal package or it's ENA checklist accession number.
-  #' @details ENA uses its own variant of MIxS, and has
-  #' write.metadata.MIxS.as.ENA assumes the dataset has already been subjected to process the process.metadata function to standardize in input. If this is not the case, "garbage in, garbage out" is applicable. 
-  #' @return tab separated .txt file
-  #' @example 
-  #' 
-  
-  warningmessages<-c()
-  
-  # 1. check input
-  if(check.valid.metadata.MIxS(metadata.object)){
-    metaunits <- metadata.object@units
-    metasection <- metadata.object@section
-    metapackage <- metadata.object@env_package
-    metadata <- metadata.object@data
-  }else{
-    stop("metadata.object argument must be a metadata.MIxS class object.
-         Common dataframes should be converted to metadata.MIxS with 
-         the data.frame.to.metadata.MIxS function.")
-  } 
-  # 2. check output destination
-  if(!is.character(name.prefix) | c(NULL,NA) %in% name.prefix | length(name.prefix)>1){
-    stop("Need input for the name.prefix argument.")
-  } 
-  if(!dir.exists(file.path(dest.dir))){
-    stop("Could not find the directory provided in the dest.dir argument.")
-  }
-  mimarks.name <- paste(dest.dir, "/MiMARKS_", name.prefix, ".csv", sep="")
-  seqset.name <- paste(dest.dir, "/SeqSet_", name.prefix, ".csv", sep="")
-  
-  # 3. create MiMARKS tabble
-  # 3.1 first row
-  Row01 <- paste("section", "Structured Comment Name", "units", 
-                 paste(rownames(metadata), collapse=","), sep=",")
-  # 3.2 general terms
-  mimarksTerms <- as.character(MarsLib[MarsLib$mars_mimarks==TRUE,]$name) #the basic terms that need to be in every dataset
-  #associated units
-  mimarksUnits <- as.character(TermsLib[match(setdiff(mimarksTerms, names(metaunits)), TermsLib$name),]$expected_unit)
-  if(length(mimarksUnits)!=0){
-    names(mimarksUnits) <- setdiff(mimarksTerms, names(metaunits))
-  }
-  mimarksUnits <- c(mimarksUnits, metaunits)
-  #assocated MIxS sections
-  mimarksSection <- as.character(TermsLib[match(setdiff(mimarksTerms, names(metasection)), TermsLib$name),]$section)
-  if(length(mimarksSection)!=0){
-    names(mimarksSection) <- setdiff(mimarksTerms, names(metasection))
-  }
-  mimarksSection <- c(mimarksSection, metasection)
-  Row02<-character()
-  #some additional steps for the primer field (to split forward and reverse primer in the seqset file)
-  investigation_type<-character() 
-  fw_primerName <- character() 
-  fw_primerSeq <- character() 
-  rv_primerName <- character()
-  rv_primerSeq <- character()
-  mimarks_data <- metadata # save data for the seqset round
-  for(tx in 1:length(mimarksTerms)){
-    Row0x_section <- as.character(mimarksSection[names(mimarksSection)==mimarksTerms[tx]])
-    Row0x_section <- paste("MiMARKS_", Row0x_section,sep="")
-    Row0x_name <- mimarksTerms[tx]
-    Row0x_units <- as.character(mimarksUnits[names(mimarksUnits)==mimarksTerms[tx]])
-    if(mimarksTerms[tx] %in% colnames(mimarks_data)){
-      Row0x_data <- mimarks_data[,colnames(mimarks_data)==mimarksTerms[tx]]
-      #remove the used data to see what columns will remain at the end
-      mimarksUnits <- mimarksUnits[!names(mimarksUnits)==mimarksTerms[tx]] 
-      mimarksSection <- mimarksSection[!names(mimarksSection)==mimarksTerms[tx]] 
-      mimarks_data <- mimarks_data[,!colnames(mimarks_data)==mimarksTerms[tx],drop=FALSE] 
-      if(mimarksTerms[tx]=="primer"){
-        Row0x_data
-        fw_primerSeq <- character() 
-        rv_primerSeq <- character()
-      }
-    } else if(ask.input){
-      if(mimarksTerms[tx] == "primer" && "mimarks-survey" %in% investigation_type){ ###special case
-        cat(paste("no primer information found:\n\tPlease provide the forward primer name, or hit enter to leave blank.\n", sep=""))
-        fw_primerName <- readline() 
-        cat(paste("no primer information found:\n\tPlease provide the forward primer sequence, or hit enter to leave blank.\n", sep=""))
-        fw_primerSeq <- readline() 
-        cat(paste("no primer information found:\n\tPlease provide the reverse primer name, or hit enter to leave blank.\n", sep=""))
-        rv_primerName <- readline() 
-        cat(paste("no primer information found:\n\tPlease provide the reverse primer sequence, or hit enter to leave blank.\n", sep=""))
-        rv_primerSeq <- readline() 
-        Row0x_data <- rep(paste("(", fw_primerName, "):",fw_primerSeq, " (", rv_primerName, "):",rv_primerSeq, sep=""), nrow(mimarks_data))
-      } else{
-        cat(paste("no data found for ",mimarksTerms[tx],":\n\tPlease type the info to fill the cells, or hit enter to leave blank.\n", sep=""))
-        user_input <- readline() 
-        Row0x_data <- rep(user_input, nrow(mimarks_data))
-      }
-    }else{
-      Row0x_data <- rep("", nrow(mimarks_data))
-    }
-    Row0x_data[is.na(Row0x_data)]<-""
-    Row0x_data <- gsub("^NA$", "", Row0x_data)
-    if(Row0x_name =="investigation_type"){
-      investigation_type<-unique(Row0x_data)
-    }
-    Row0x_data <- paste(Row0x_data, collapse=",")
-    Row0x <- paste(Row0x_section, Row0x_name, Row0x_units, Row0x_data, sep=",")
-    Row02 <-  paste(Row02, Row0x, sep="\n")
-    
-  }
-  
-  # 3.3 remaining dataset-specific terms
-  doubleTerms <- c("decimalLatitude", "decimalLongitude")
-  mimarksUnits <- mimarksUnits[!names(mimarksUnits) %in% doubleTerms] 
-  mimarksSection <- mimarksSection[!names(mimarksSection) %in% doubleTerms] 
-  mimarks_data <- mimarks_data[,!colnames(mimarks_data) %in% doubleTerms, drop=FALSE]
-  if(ncol(mimarks_data)>0){
-    Row03 <- character()
-    for(cx in 1:ncol(mimarks_data)){
-      #assuming the data has gone through the QC of process.metadata()
-      Row0x_section <- mimarksSection[colnames(mimarks_data[cx])]
-      if(!Row0x_section %in% c("package", "miscellaneous")){
-        Row0x_section <- paste("MiMARKS_", Row0x_section,sep="")
-      }
-      Row0x_name <- colnames(mimarks_data[cx])
-      Row0x_units <- mimarksUnits[colnames(mimarks_data[cx])]
-      Row0x_data <- mimarks_data[,cx]
-      Row0x_data[is.na(Row0x_data)]<-""
-      Row0x_data <- gsub("^NA$", "", Row0x_data)
-      Row0x_data <- paste(Row0x_data, collapse=",")
-      Row0x <- paste(Row0x_section, Row0x_name, Row0x_units, Row0x_data, sep=",")
-      Row03 <- paste(Row03, Row0x, sep="\n")
-    }
-  }
-  mimarks.data <- paste(Row01, Row02, Row03, sep="")
-  
-  # 4. create SeqSet tabble
-  # 4.1 first row
-  Row01 <- paste("unique_sequence_set_id", 
-                 paste(rownames(metadata), collapse=","), sep=",")
-  # 4.2 other rows
-  seqsetTerms <- as.character(MarsLib[MarsLib$mars_seqset==TRUE,]$name)
-  Row02<-character()
-  for(tx in 1:length(seqsetTerms)){
-    Row0x_name <- seqsetTerms[tx]
-    if(seqsetTerms[tx] %in% colnames(metadata)){
-      Row0x_data <- metadata[,colnames(metadata)==seqsetTerms[tx]]
-    } else{
-      mimarksEquiv <- as.character(MarsLib[MarsLib$name==seqsetTerms[tx],]$mimarks_equivalent)[1]
-      if(mimarksEquiv == "investigation_type"){ ###special case
-        Row0x_data <- gsub("mimarks-survey", "marker gene", Row0x_data)
-      }
-      if(nchar(mimarksEquiv)==0){ #case it had no mimarks equivalent or wasn't in the colnames of metadata
-        if(ask.input){
-          cat(paste("no data found for ",seqsetTerms[tx],":\n\tPlease type the info to fill the cells, or hit enter to leave blank.\n", sep=""))
-          user_input <- readline() 
-          if(user_input == ""){
-            Row0x_data <- rep("", nrow(metadata))
-          } else{
-            Row0x_data <- rep(user_input, nrow(metadata))
-          }
-        }else{
-          Row0x_data <- rep("", nrow(metadata))
-        }
-      }else{
-        Row0x_data <- metadata[,colnames(metadata)==mimarksEquiv]
-      }
-    }
-    Row0x_data[is.na(Row0x_data)]<-""
-    Row0x_data <- gsub("^NA$", "", Row0x_data)
-    Row0x_data <- paste(Row0x_data, collapse=",")
-    Row0x <- paste(Row0x_name, Row0x_data, sep=",")
-    Row02 <-  paste(Row02, Row0x, sep="\n")
-  }
-  seqset.data <- paste(Row01, Row02, sep="")
-  
-  # 5. finalize
-  cat(paste("The data had been written to ", dest.dir, "\n",sep=""))
-  
-  write.table(mimarks.data, file=mimarks.name, 
-              col.names = FALSE, row.names = FALSE, quote = FALSE, fileEncoding = "UTF-8")
-  write.table(seqset.data, file=seqset.name, 
-              col.names = FALSE, row.names = FALSE, quote = FALSE, fileEncoding = "UTF-8")
-  }
 
 
 
@@ -336,7 +157,7 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   }else if(check.valid.metadata.DwC(metadata.object)){
     ### experimantal part, still to be develloped
     metaformat <- "DwC"
-    metapackage <- "not_specified"
+    metapackage <- metadata.object@type
     coredata <- metadata.object@core
     metadata <- metadata.object@emof
   }else{
@@ -345,7 +166,11 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   
   # the data must be associated with an EML reccord, otherwise it should not be added to the database
   if(is.na(EML.url)){
-    stop("No EML.url provided.\n\tAny dataset must be associated with a project, of which the project metadata has been\n\tsubmitted to the IPT.")
+    if(EML.url){
+      EML.url <- metadata.object@EML.url
+    }else{
+      stop("No EML.url provided.\n\tAny dataset must be associated with a project, of which the project metadata has been\n\tsubmitted to the IPT.")
+    }
   }
   # multiple EML URLs must be named
   if(length(EML.url)>1 & !is.null(names(EML.url))){
@@ -360,10 +185,7 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
     }
   }
   
-  # to keep track of columns in the input data that have been sent to the polaaarDB
-  ColsDone <- c()
   num_recs <- nrow(metadata)
- #IDtable <- do we need a table to keep track of IDs?
 
   # check output destination
   if(!dir.exists(file.path(dest.dir))){
@@ -399,7 +221,6 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   # Event $ footprintWKT = coordinates in well-known text format
   if("footprintWKT" %in% colnames(metadata)){
     Event$footprintWKT<-metadata$footprintWKT
-    ColsDone <- c(ColsDone, "footprintWKT")
   }else if("decimalLatitude" %in% colnames(metadata) &
            "decimalLongitude" %in% colnames(metadata)){
     Event$footprintWKT <- paste("SRID=4326; POINT (", 
@@ -416,26 +237,23 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   Event$footprintWKT <- gsub("POINT (NA, NA)", NA, Event$footprintWKT)
   
   # Event $ eventRemarks / collection_date / collection_time / samplingProtocol
-  for(tm in c("eventRemarks", "collection_date", "collection_time", "samplingProtocol")){
-    if("tm" %in% colnames(metadata)){
-      Event$eventRemarks<-metadata$eventRemarks
-      ColsDone <- c(ColsDone, "eventRemarks")
+  for(varTerm in c("eventRemarks", "collection_date", "collection_time", "samplingProtocol")){
+    if(varTerm %in% colnames(metadata)){
+      Event[,varTerm] <- metadata[,varTerm]
     }
   }
   
   # Event $ sample_name
   if("original_name" %in% colnames(metadata)){
     Event$sample_name<-metadata$original_name
-    ColsDone <- c(ColsDone, "original_name")
   } else if("INSDC_SampleID" %in% colnames(metadata)){
     Event$sample_name<-metadata$INSDC_SampleID
-    ColsDone <- c(ColsDone, "INSDC_SampleID")
   } else if("occurenceID" %in% colnames(metadata)){
     Event$sample_name<-metadata$occurenceID
-    ColsDone <- c(ColsDone, "occurenceID")
   } else{
     Event$sample_name <- colnames(metadata) 
   }
+  metadata$polaaar_name <- Event$sample_name
   
   #------------------------------------------
   #### create ParentEvent table ####
@@ -457,7 +275,7 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
       ParentEvent$parent_event_name <- metadata$eventID
       ParentEvent$event_type <- rep("event", num_recs)
       # link to Event table (first name, change to id later)
-      Event$parent_event <- ParentEvent$parent_event_name
+      Event$parent_event <- as.character(ParentEvent$parent_event_name)
       # link to the project (first name, change to id later)
       PRJ <- "case1"
       if("project_name" %in% colnames(metadata)){
@@ -519,7 +337,7 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
       Event$parent_event <- unlist(sapply(Event$parent_event, FUN = function(x){gsub(x,ParentEvent[ParentEvent$parent_event_name==x,]$id,x)}))
       
       # ParentEvent $ parent_event [ref: ParentEvent $ id]
-      ParentEvent$parent_event <- unlist(sapply(ParentEvent$parent_event, 
+      ParentEvent$parent_event <- unlist(sapply(as.character(ParentEvent$parent_event), 
                                                 FUN = function(x){
                                                   if(x!=""){
                                                     gsub(x,ParentEvent[ParentEvent$parent_event_name==x,]$id,x)
@@ -612,7 +430,9 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   }
   
   # ParentEvent $ description
-  # no standard term for event description yet...
+  if("sample_description" %in% colnames(metadata)){
+    ParentEvent$description <- metadata$sample_description
+  }
   
   # ParentEvent $ created_on / updated_on
   ParentEvent$created_on <- rep(Sys.Date(), nrow(ParentEvent))
@@ -754,8 +574,6 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
     }
   }
 
-
-
   #------------------------------------------
   #### create event_type table ####
   #------------------------------------------
@@ -830,8 +648,24 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
     Metadata$geo_loc_name <- gsub("^:", "", locName)
   }
   
+  # Metadata $ env_package
+  #------------------------------------------
+  #### Package table ####
+  #------------------------------------------
+  # this table is pre-defined, and is not created. It's IDs are imported.
+  # Package $ id [ref: Metadata $ env_package]
+  if("env_package" %in% colnames(metadata)){
+    Metadata$env_package <- unname(sapply(metadata$env_package, FUN=function(x){x<-MIxS_packages[MIxS_packages$name==x,]$id}))
+  } else{
+    if(metapackage != "multiple_packages"){
+      Metadata$env_package <- rep(MIxS_packages[MIxS_packages$name==metapackage,]$id)
+    }else{
+      Metadata$env_package <- rep(16, num_recs)
+    }
+  }
+  
   # Metadata $ all the other terms
-  for(varTerm in c("env_package", "env_feature", "env_material", "institutionID", 
+  for(varTerm in c("env_feature", "env_material", "institutionID", 
                    "nucl_acid_amp", "nucl_acid_ext", "ref_biomaterial", "rel_to_oxygen", 
                    "rightsHolder", "samp_collect_device", "samp_store_dur", "samp_store_loc",
                    "samp_store_temp", "samp_vol_we_dna_ext", "samplingProtocol", 
@@ -849,7 +683,6 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   # Event $ metadata_exists
   Event$metadata_exists<- rep("TRUE", nrow(Event))
   
-
   # Metadata $ additional_info
   NoteTerms <- intersect(colnames(metadata), c("fieldNotes", "eventRemarks"))
   if(length(NoteTerms)!=0){
@@ -861,7 +694,7 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   #------------------------------------------
   # Sequences $ id [ref: Metadata $ sequence]
   
-  SequnencesTerms <- c("id", "sequence_name", "MID", "subspecf_gen_lin", "target_gene",
+  SequencesTerms <- c("id", "sequence_name", "MID", "subspecf_gen_lin", "target_gene",
                        "target_subfragment", "type", "primerName_forward", 
                        "primerName_reverse", "primer_forward", "primer_reverse", "run_type",
                        "seqData_url", "seqData_accessionNumber", "seqData_projectNumber",
@@ -870,6 +703,9 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   
   Sequences <- data.frame(matrix(nrow=num_recs, ncol=length(SequencesTerms), data=""), stringsAsFactors = FALSE)
   colnames(Sequences) <- SequencesTerms
+  
+  # Sequences $ sequence_name
+  Sequences$sequence_name <- metadata$polaaar_name
   
   # Sequences $ MID
   if("mid" %in% colnames(metadata)){
@@ -895,13 +731,21 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   }
   
   # Sequences $ primer_forward
-  if("primer_forward_sequence+forward" %in% colnames(metadata)){
+  if("primer_forward_sequence" %in% colnames(metadata)){
     Sequences$primer_forward <- metadata$primer_forward_sequence
+    # Sequences $ primer_reverse # assume if there is no forward, there won't be a reverse
+    if("primer_reverse_sequence" %in% colnames(metadata)){
+      Sequences$primer_reverse <- metadata$primer_reverse_sequence
+    }
+  }else if("pcr_primers" %in% colnames(metadata)){
+    primer_split <- unlist(strsplit(as.character(metadata$pcr_primers), " "))
+    #
+    #
+    # still need to be worked out
+    #
+    #
   }
-  # Sequences $ primer_reverse
-  if("primer_reverse_sequence" %in% colnames(metadata)){
-    Sequences$primer_reverse <- metadata$primer_reverse_sequence
-  }
+
   # Sequences $ url
   if("seqData_url" %in% colnames(metadata)){
     Sequences$url <- metadata$seqData_url
@@ -940,34 +784,208 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
     }
   }
   
-  # Sequences $ id
-  Sequences$id <- 1:nrow(Sequences)
-  # Metadata $ sequence ## assuming every metadata record corresponds to a sequence record
-  Metadata$sequence <- Sequences$id
-  
 
-  
-  #------------------------------------------
-  #### create Biome table ####
-  #------------------------------------------
-  # Biome $ id [ref: Metadata $ env_biome]
-  
-  BiomeTerms <- c("id", "name", "biome_level", "parent_biome")
+  # remove samples with no sequences
+  Sequences <- Sequences[Sequences$seqData_url !="" | 
+                           Sequences$seqData_accessionNumber !="" |
+                           Sequences$seqData_projectNumber !="" |
+                           Sequences$seqData_runNumber !="" |
+                           Sequences$seqData_sampleNumber !="" ,]
+  if(nrow(Sequences) > 0){
+    # Sequences $ id
+    Sequences$id <- 1:nrow(Sequences)
+    # Metadata $ sequence 
+    metadata$polaaar_SeqID <- metadata$polaaar_name
+    for(i in 1:nrow(metadata)){
+      if(metadata[i,]$polaaar_SeqID %in% Sequences$sequence_name){
+        metadata[i,]$polaaar_SeqID <- Sequences[Sequences$sequence_name == metadata[i,]$polaaar_SeqID,]$id
+      }else{
+        metadata[i,]$polaaar_SeqID <- ""
+      }
+    }
+    Metadata$sequence <- metadata$polaaar_SeqID
+  }
   
   # Metadata $ env_biome
+  if("env_biome" %in% colnames(metadata)){
+    Metadata$env_biome <- as.character(metadata$env_biome)
+    # assume words of one terms are separated by a " ", ".", and "_" => change this to space
+    Metadata$env_biome <-gsub(".", " ", Metadata$env_biome, fixed=TRUE)
+    Metadata$env_biome <-gsub("_", " ", Metadata$env_biome, fixed=TRUE)
+    Metadata$env_biome<-gsub("\\s+", " ", Metadata$env_biome, fixed=FALSE)
+    # change possible hierarchy separators to ":"
+    Metadata$env_biome <-gsub(",", ":", Metadata$env_biome, fixed=TRUE)
+    Metadata$env_biome<-gsub(">", ":", Metadata$env_biome, fixed=TRUE)
+    Metadata$env_biome<-gsub(";", ":", Metadata$env_biome, fixed=TRUE)
+    Metadata$env_biome<-gsub("|", ":", Metadata$env_biome, fixed=TRUE)
+    Metadata$env_biome<-gsub(":+", ":", Metadata$env_biome, fixed=FALSE)
+  }
   
-  
+  #******************************************
+  # This part is only for DarwinCore occurence data
+  if(metaformat == "DwC"){
+    #------------------------------------------
+    #### create Occurence table ####
+    #------------------------------------------
+    # Occurence $ id [ref: Event $ occurence]
+    # Occurence $ taxon [ref: Taxa $ id]
+    # Occurence $ associated_sequences [ref: Sequence $ id]
+    
+    OccurenceTerms <- c("id", "occurrenceID", "taxon", "occurrence_notes", "occurrence_status",
+                        "occurrence_class", "catalog_number", "date_identified", "other_catalog_numbers",
+                        "recorded_by", "associated_sequences" )
+    Occurence <- data.frame(matrix(nrow=num_recs, ncol=length(OccurenceTerms), data=NA))
+    colnames(Occurence) <- OccurenceTerms
+    #
+    #
+    # still need to be worked out
+    #
+    #
+    
+    #------------------------------------------
+    #### create Taxa table ####
+    #------------------------------------------
+    # Taxa $ id [ref: Occurence $ taxon]
+    
+    TaxaTerms <- c("id", "name", "TaxonRank", "taxonID", "parent_taxa")
+    #
+    #
+    # still need to be worked out
+    #
+    #
+    
+    
+  }
+  # end of part for DarwinCore occurence
+  #******************************************
   
   #------------------------------------------
   #### create Environment table ####
+  #### create units table ####
+  #### create sampling_method table ####
+  #### create variable table ####
   #------------------------------------------
+  # this is the last set of tables to be checked, and will take most of the remaining variables that have not been recognized by the system
+  # again: important to know we assume the data has gone through the process.metadata() function
+  # Environment $ id [ref: Event $ environment]
+  # Environment $ env_methods [ref: sampling_methods $ id]
+  # Environment $ env_units [ref: units $ id]
+  # Environment $ sequences [ref: Sequences $ id]
+  # Environment $ env_variable [ref: Variable $ id]
+
+  ## Environment
   EnvironmentTerms <- c("id", "env_sample_name", "created_at", "Latitude", "Longitude",
                         "link_climate_info", "env_variable", "env_method", "env_units", 
                         "sequences", "env_numeric_value", "env_text_value")
+  Environment <- data.frame(matrix(nrow=0, ncol=length(EnvironmentTerms), data=""), stringsAsFactors = FALSE)
+  colnames(Environment) <- EnvironmentTerms
+  # units
+  unitsTerms <- c("id", "name", "html_tag")
+  units <- data.frame(matrix(nrow=0, ncol=length(unitsTerms), data=""), stringsAsFactors = FALSE)
+  colnames(units) <- unitsTerms
+  # Variable
+  #var_type either TXT (text) or NUM (numeric)
+  VariableTerms <- c("id", "name", "var_units", "method", "var_type")
+  Variable <- data.frame(matrix(nrow=0, ncol=length(VariableTerms), data=""), stringsAsFactors = FALSE)
+  colnames(Variable) <- VariableTerms
+  # sampling_method 
+  sampling_methodTerms <- c("id", "shortname", "description")
+  sampling_method <- data.frame(matrix(nrow=0, ncol=length(sampling_methodTerms), data=""), stringsAsFactors = FALSE)
+  colnames(sampling_method) <- sampling_methodTerms
+
   
+  if(metaformat == "MIxS"){
+    ### environmental variables
+    ### one line per measurement
+    ### refer back to Event $ environment
+    # first remove any columns that are not environmental variables:
+    meta_env <- metadata
+    meta_env <- meta_env[,!colnames(meta_env) %in% TermsLib[TermsLib$polaaarDB_environment==0,]$name]
+    
+    for(envVar in colnames(meta_env)){
+      # data for the variable table
+      env_Variable <- as.character(meta_env[,colnames(meta_env)==envVar])
+      names(env_Variable) <- meta_env$polaaar_name
+      env_units <- metaunits[envVar]
+      env_Variable <- env_Variable[!env_Variable %in% c(NA, "NA", "", "not collected", "not_collected")]
+      
+      #determine var_type
+      if(any(grepl("[[:alpha:]]+", env_Variable))){
+        var_type <- "TXT"
+      }else{
+        var_type <- "NUM"
+      }
+      
+      Environment_sub <- data.frame(matrix(nrow=length(env_Variable), ncol=length(EnvironmentTerms), data=""), stringsAsFactors = FALSE)
+      colnames(Environment_sub) <- EnvironmentTerms
+      
+      # Environment  $id
+      Environment_sub$id <- (nrow(Environment)+1):(nrow(Environment)+length(env_Variable))
+      # Environment $ env_sample_name
+      Environment_sub$env_sample_name <- c(names(env_Variable))
+      # Environment $ created_at
+      Environment_sub$created_at <- rep(Sys.Date(), length(env_Variable))
+      
+      # latitude-longitude
+      if("decimalLatitude" %in% colnames(metadata) &
+         "decimalLongitude" %in% colnames(metadata)){
+        Environment_sub$Latitude <- metadata[metadata$polaaar_name %in% names(env_Variable),]$decimalLatitude
+        Environment_sub$Longitude <- metadata[metadata$polaaar_name %in% names(env_Variable),]$decimalLongitude
+      }else if("lat_lon" %in% colnames(metadata)){
+        lat<-unname(sapply(metadata[metadata$polaaar_name %in% names(env_Variable),]$lat_lon, FUN=function(x){x<-strsplit(x, " ")[[1]][1]}))
+        lon<-unname(sapply(metadata[metadata$polaaar_name %in% names(env_Variable),]$lat_lon, FUN=function(x){x<-strsplit(x, " ")[[1]][2]}))
+        Environment_sub$Latitude <- as.numeric(lat)
+        Environment_sub$Longitude <- as.numeric(lon)
+      }
+      
+      # Environment $ link_climate_info 
+      if("climate_environment" %in% colnames(metadata)){
+        Environment_sub$link_climate_info <- metadata[metadata$polaaar_name %in% names(env_Variable),]$climate_environment
+      }
+      
+      if(var_type=="TXT"){
+        Environment_sub$env_numeric_value <- env_Variable
+      }else{
+        Environment_sub$env_text_value <- env_Variable
+      }
+      
+      Variable <- rbind(Variable,
+                        data.frame(id=(nrow(Variable)+1),
+                                   name= envVar,
+                                   var_units="",
+                                   method="",
+                                   var_type=var_type
+                        ))
+      #Environment $ env_variable
+      Environment_sub$env_variable <- rep((nrow(Variable)+1), length(env_Variable))
+      
+      if(!env_units %in% units$name){
+        units <- rbind(units,
+                       data.frame(id=(nrow(units)+1),
+                                  name= env_units,
+                                  html_tag=""
+                       ))
+      }
+      #Environment $ env_units
+      Environment_sub$env_units <- rep(units[units$name==env_units,]$id, length(env_Variable))
+      Variable$var_units <- units[units$name==env_units,]$id
+      
+      #Environment $ env_method
+      # ususlly methods associated with environmental measurements are not given
+      
+      #Environment $ sequences
+      Environment_sub$sequences <- Environment_sub$env_sample_name
+      Environment_sub$sequences <- unlist(sapply(Environment_sub$sequences, FUN=function(x){
+        x <- metadata[metadata$polaaar_name==x,]$polaaar_SeqID
+      }))
+      Environment<-rbind(Environment, Environment_sub)
+    }
+  }else if(metaformat == "DwC"){}
   
-  
-  
+
+  #------------------------------------------
+  #### write out the tables ####
+  #------------------------------------------
   
   ### writing the data
   baseName <- "testdata"
@@ -978,10 +996,23 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   write.csv(Metadata, paste(dest.dir, "/", baseName, "_Metadata.csv", sep=""), na="", row.names = FALSE)
   write.csv(Sequences, paste(dest.dir, "/", baseName, "_Sequences.csv", sep=""), na="", row.names = FALSE)
 
+  write.csv(event_type, paste(dest.dir, "/", baseName, "_Environment.csv", sep=""), na="", row.names = FALSE)
+  write.csv(Metadata, paste(dest.dir, "/", baseName, "_Variable.csv", sep=""), na="", row.names = FALSE)
+  write.csv(Sequences, paste(dest.dir, "/", baseName, "_units.csv", sep=""), na="", row.names = FALSE)
   
+  ## conditional tables
 
+  if(exists(Occurence)){
+    write.csv(Sequences, paste(dest.dir, "/", baseName, "Occurence.csv", sep=""), na="", row.names = FALSE)
+  }
+  if(exists(Taxa)){
+    write.csv(Sequences, paste(dest.dir, "/", baseName, "Taxa.csv", sep=""), na="", row.names = FALSE)
+  }
+  if(exists(sampling_method)){
+    write.csv(Sequences, paste(dest.dir, "/", baseName, "sampling_method.csv", sep=""), na="", row.names = FALSE)
+  }
   
-
+  #Occurence Taxa sampling_method
   
 
   
@@ -1009,7 +1040,8 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
 
   
 
-  
+}
+
   
 
   
@@ -1017,71 +1049,8 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   ############### done up to here  ###############
   ################################################
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
 
 
-  # 6. Package table
-  PackageTerms <- c("id", "name")
-  
-  
-    if("env_package" %in% colnames(metadata)){
-      Package_recs <- metadata$env_package
-      ColsDone <- c(ColsDone, "env_package")
-    } else if(metapackage != "multiple_packages"){
-      Package_recs <- rep(metapackage, num_recs)
-    }
-
-  
-  
-  
-  for(trm in setdiff(EventTerms, c("footprintWKT", "sample_name", "occurrence",
-                                   "metadata",  "environment", "metadata_exists",
-                                   "occurrence_exists", "environment_exists"))){
-    if(trm %in% colnames(metadata)){
-      Event_recs[,trm]<-metadata[,trm]
-      ColsDone <- c(ColsDone, trm)
-    }
-  }
-  
-  
-  
-  # 7. Occurence table
-  OccurenceTerms <- c("id", "occurrenceID", "taxon", "occurrence_notes", "occurrence_status",
-                      "occurrence_class", "catalog_number", "date_identified", "other_catalog_numbers",
-                      "recorded_by", "associated_sequences" )
-  
-  
-  if(metaformat == "DwC"){
-    Occurence_recs <- data.frame(matrix(nrow=num_recs, ncol=length(OccurenceTerms), data=NA))
-    colnames(Occurence_recs) <- OccurenceTerms
-    rownames(Occurence_recs) <- rownames(coredata)
-    for(trm in setdiff(OccurenceTerms, "taxon")){
-      if(trm %in% colnames(coredata)){
-        Occurence_recs[,trm]<-coredata[,trm]
-        ColsDone <- c(ColsDone, trm)
-      }
-    }
-    
-    ### taxon
-    #####################
-    ### TO BE RESOLVED:
-    ### change taxon to taxonID?
-    #####################
-    
-  }
-  
-  # 8. Taxa table
-  TaxaTerms <- c("id", "name", "TaxonRank", "taxonID", "parent_taxa")
-  
-  
   if(metaformat == "MIxS"){
     if("subspecf_gen_lin" %in% colnames(metadata)){
       ### DO SOMETHING
@@ -1112,18 +1081,9 @@ metadata.to.polaaar <- function(metadata.object, EML.url=NA, user_ID="",
   
 
    
-  # 12. Units table
-  UnitTerms <- c("id", "name", "html_tag")
   
-  # 13. Variable table
-  VariableTerms <- c("id", "name", "var_units", "method", "var_type")
-  #var_type either TXT (text) or NUM (numeric)
   
-
-  # 17. sampling_method table
-  # links to variable table
-  sampling_methodTerms <- c("id", "shortname", "description")
-
+  
   
 
   
