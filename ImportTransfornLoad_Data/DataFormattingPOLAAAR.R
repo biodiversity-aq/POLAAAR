@@ -17,10 +17,10 @@ polaaarLib<-read.csv("/Users/msweetlove/OneDrive_RBINS/mARS_NewSeqData/polaRRToo
 #DATABASES = {
 #  'default': {
 #    'ENGINE': 'django.contrib.gis.db.backends.postgis',
-#    'NAME': 'd86hngmf7e303f',
+#    'NAME': '',
 #    'USER': 'hwyoarfegnhrwn',
-#    'PASSWORD': '286e142ad8f2d8aa4d5ad529c43bbe847f4037ddc4f065f51bf18366cfac4cd5',
-#    'HOST': 'ec2-54-217-234-157.eu-west-1.compute.amazonaws.com',
+#    'PASSWORD': '',
+#    'HOST': '',
 #    'PORT': '5432'
 #  }
 #}
