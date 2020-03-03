@@ -1,0 +1,38 @@
+---
+title: "POLAAARimport"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{POLAAARimport}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(POLAAARimport)
+```
+
+Disclaimer: This package has been develloped by the Royal Belgian Institute of Natural Sciences to format data and parse it to the backand database of the POLAAAR portal on biodiversity.aq. This package is aimed at internal use only.
+
+# Introduction
+POLAAAR, which is short for Polar ’Omics Links in Arctic-Antarctic-Alpine (A3) Research, is an online thematic portal that focusses molecular biodiversity data resources from polar and alpine regions. Our approach is based on enriching public datasets with the associated metadata and environmental information. These data are made publicly accessible through POLA3R and are also linked to the associated publications and the sequences on INSDC. To allow interoperability with other systems, the portal is designed to operate between different data archiving standards, such as the Minimum Information on any (x) Sequence (MIxS) as well as DarwinCore. Datasets that are listed on POLA3R are also registered on GBIF to increase their discoverability.
+
+# Data pre-processing
+Before starting, the input data needs to be quality-controlled (QC), and formatted as either 1) a metadata.MIxS class object of MIxS or MIMARKS data, or DwC.event or DwC.occurence class objects. Formatting the datain one of these classes assures that all the variable names are standardized as either MIxS or DarwinCore terms. This can be compared to the "language" of the dataset, and makes sure the data can be read and understood, as each terms is well-defined and widely used by the scientific community.
+
+# Writing data to POLAAAR
+For the POLAAAR backend database the incomming data needs to be split into different tables, which are optimized to querry the datasets. This is done by the metadata.to.polaaar() function.
+Version 1 or lower are not yet able to write the data directly to the database
+
+# Functions
+## metadata.to.polaaar()
+metadata.to.polaaar() writes a metadata.MIxS, DwC.event or a DwC.occurrence class object object to the polaaar database
+
+## get.polaaar.EML.data()
+get.polaaar.EML.data() extracts the information needed for the POLAAAR database from a given onine EML document
